@@ -56,10 +56,8 @@ class List extends Lazy
         super(_label,
             {_item,_predicate,_advance,_validate,_apply},
             ({_item,_predicate,_apply,_validate,_advance}) => {
-
                 if(_predicate(_item) === false)
                     return {_item: exit, _next: null};
-
 
                 let _next = new List(_label,_advance(_item),_predicate,_advance,_validate,_apply);
 
@@ -84,7 +82,7 @@ class List extends Lazy
 
     take(n)
     {
-        return new List('Pega', {_lista: this, _n: n},
+        return new List('take', {_lista: this, _n: n},
                         ({_lista, _n})=>{return !vazio(_lista) && _n !== 0;},
                         ({_lista, _n})=>{return {_lista: _lista.next, _n: _n-1}},
                         pred_true,apply_item);
@@ -111,14 +109,30 @@ class List extends Lazy
                         advance_func, pred_true, apply_item)
     }
 
-    displayNow()
+    displayAll()
     {
         this.display();
-        if(!vazio(this))
-            this.next.displayNow();
+        if(!vazio(this.next))
+            this.next.displayAll();
     }
 }
 
+function imediate(item)
+{
+    let res =  new List('Imediate',item,pred_true,()=>{return null},pred_true,id()).evaluate();
+    res._next = null;
+    return res;
+}
+
+function displayAll(_lista)
+{
+    let lista = _lista;
+    while(!vazio(lista))
+    {
+        lista.display();
+        lista = lista.next;
+    }
+}
 
 function num(n1, n2)
 {
@@ -126,4 +140,35 @@ function num(n1, n2)
     return new List('Num',n1, (_args) => {return _args < n2;},(_args) => {return _args+1;},pred_true,id());
 }
 
-function residue(m) {return (n) => {return n%m === 0}}
+function residue(m) {return (n) => {return n%m !== 0}}
+
+function siegeLazy(lista, lista_p)
+{
+    return new List('Siege', {_lista: lista, _lista_p: lista_p},
+        pred_true,
+        ({_lista,_lista_p}) =>
+        {
+            const n = _lista.item;
+            const p = _lista_p.item;
+            if(n === p*p)
+                return {_lista: _lista.next.filter(residue(p)), _lista_p: _lista_p.next};
+            return {_lista: _lista.next, _lista_p: _lista_p};
+        },
+        ({_lista,_lista_p}) =>
+        {
+            const n = _lista.item;
+            const p = _lista_p.item;
+            return n !== p*p
+        },
+        apply_item);
+}
+
+function siege()
+{
+    let n = imediate(2);
+    n._next = siegeLazy(num(3),n);
+    return n;
+}
+
+let n = siege();
+n.while((n)=>{return n<500}).displayAll();
