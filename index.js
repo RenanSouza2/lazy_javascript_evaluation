@@ -2,8 +2,7 @@
 
 class Lazy
 {
-    constructor(
-        label, args, func,)
+    constructor(label, args, func,)
     {
         this._label = label;
         this._args  = args;
@@ -26,22 +25,31 @@ class Lazy
         return this;
     }
 
-    display() {console.log(this.evaluate());}
+    get item() {return this.evaluate()._item;}
+
+    display()
+    {
+        if(vazio(this)) console.log('Exit');
+        else            console.log(this.item);
+        return 'You dont just display display';
+    }
 }
 
 const exit = {};
 
-function vazio(_lista) {return _lista.item === exit}
+function vazio(_list) {return _list.item === exit}
 
-function pred_vazio({_lista}) {return  !vazio(_lista);}
+function pred_vazio({_list}) {return !vazio(_list);}
 
 function pred_true() {return true}
 
-function apply_item({_lista}){return _lista.item}
+function pred_false() {return true}
 
-function evaluate_predicate({_lista,_func}) {return _func(_lista.item);}
+function apply_item({_list}){return _list.item}
 
-function advance_func({_lista,_func}) {return {_lista: _lista.next, _func:_func}}
+function evaluate_predicate({_list,_func}) {return _func(_list.item);}
+
+function advance_func({_list,_func}) {return {_list: _list.next, _func:_func}}
 
 function id(func)
 {
@@ -64,49 +72,82 @@ class List extends Lazy
                 if(!_validate(_item))
                     return _next.evaluate();
 
-                return {
-                    _item: _apply(_item),
-                    _next: _next
-                };
+                return {_item: _apply(_item), _next: _next};
             });
     }
 
-    get item() {return this.evaluate()._item;}
     get next() {return this.evaluate()._next;}
-
-    display()
-    {
-        if(vazio(this)) console.log('Exit');
-        else            console.log(this.item);
-    }
 
     take(n)
     {
-        return new List('take', {_lista: this, _n: n},
-                        ({_lista, _n})=>{return !vazio(_lista) && _n !== 0;},
-                        ({_lista, _n})=>{return {_lista: _lista.next, _n: _n-1}},
+        return new List ('take', {_list: this, _n: n},
+                        ({_list, _n})=>{return !vazio(_list) && _n !== 0;},
+                        ({_list, _n})=>{return {_list: _list.next, _n: _n-1}},
                         pred_true,apply_item);
     }
 
     map(func)
     {
-        return new List('Map', {_lista: this, _func: func},
+        return new List ('Map', {_list: this, _func: func},
                         pred_vazio, advance_func, pred_true,
-                        ({_lista, _func}) => {return _func(_lista.item);});
+                        ({_list, _func}) => {return _func(_list.item);});
     }
 
     filter(pred)
     {
-        return new List('Filter', {_lista: this, _func: pred},
+        return new List ('Filter', {_list: this, _func: pred},
                         pred_vazio, advance_func,
                         evaluate_predicate, apply_item);
     }
 
     while(pred)
     {
-        return new List('Until',{_lista: this, _func: pred},
+        return new List ('Until',{_list: this, _func: pred},
                         evaluate_predicate,
                         advance_func, pred_true, apply_item)
+    }
+    
+    combine(list,func)
+    {
+        return new List ('Combine', {_list_a:this,_list_b:list},
+                        ({_list_a,_list_b}) => {return !vazio(_list_a)&&!vazio(_list_b)},
+                        ({_list_a,_list_b}) => {return {_list_a: _list_a.next, _list_b: _list_b.next}},
+                        pred_true,
+                        ({_list_a,_list_b}) => {return func(_list_a.item,_list_b.item)});
+    }
+
+    toLazy() {return new Lazy('toLazy ' + this.label ,this,(list) => {return {_item:list.item}});}
+    
+    reduce(offset,func)
+    {
+        return new List ('Reduce', {_offset: offset,_list: this},
+                        ({_list}) => {return _list !== null;},
+                        ({_offset,_list}) => {return {_offset: func(_offset,_list.item),_list: _list.next}},
+                        ({_list}) => {return _list.next === null},
+                        ({_offset}) => {return _offset}).toLazy();
+    }
+
+    reduceMap(offset,func)
+    {
+        return new List ('ReduceMap',{_offset:offset,_list:this}, pred_vazio,
+                        ({_offset,_list}) => {return {_offset: func(_offset,_list.item),_list: _list.next}}, pred_vazio,
+                        ({_offset,_list}) => {return func(_offset,_list.item)});
+    }
+
+    append(list)
+    {
+        return new List ('Append',{_list: this, _append: list},
+                        ({_list}) => {return _list !== null;},
+                        ({_list,_append}) => {return {_list: _list.next,_append:_append}},
+                        pred_true,
+                        ({_list, _append}) => {
+                            if(_list.item === exit) return _append
+                        });
+    }
+
+    count()
+    {
+        return this.map(()=>{return 1}).reduce(0,soma);
     }
 
     displayAll()
@@ -117,6 +158,15 @@ class List extends Lazy
     }
 }
 
+function residue(m) {return (n) => {return n%m !== 0;};}
+
+function lessThan(m) {return (n) => {return n<m;};}
+
+function soma(a,b) {return a+b;}
+function mult(a,b) {return a*b;}
+
+function somaHigh(a) {return (b) => {return a+b;}}
+
 function imediate(item)
 {
     let res =  new List('Imediate',item,pred_true,()=>{return null},pred_true,id()).evaluate();
@@ -124,51 +174,61 @@ function imediate(item)
     return res;
 }
 
-function displayAll(_lista)
+function displayAll(_list)
 {
-    let lista = _lista;
-    while(!vazio(lista))
+    let list = _list;
+    while(!vazio(list))
     {
-        lista.display();
-        lista = lista.next;
+        list.display();
+        list = list.next;
     }
 }
 
 function num(n1, n2)
 {
     if(n2 === undefined) return new   List('Num',n1,pred_true,(_args) => {return _args+1;},pred_true,id());
-    return new List('Num',n1, (_args) => {return _args < n2;},(_args) => {return _args+1;},pred_true,id());
-}
-
-function residue(m) {return (n) => {return n%m !== 0}}
-
-function siegeLazy(lista, lista_p)
-{
-    return new List('Siege', {_lista: lista, _lista_p: lista_p},
-        pred_true,
-        ({_lista,_lista_p}) =>
-        {
-            const n = _lista.item;
-            const p = _lista_p.item;
-            if(n === p*p)
-                return {_lista: _lista.next.filter(residue(p)), _lista_p: _lista_p.next};
-            return {_lista: _lista.next, _lista_p: _lista_p};
-        },
-        ({_lista,_lista_p}) =>
-        {
-            const n = _lista.item;
-            const p = _lista_p.item;
-            return n !== p*p
-        },
-        apply_item);
+    return new List('Num',n1, lessThan(n2) ,(_args) => {return _args+1;},pred_true,id());
 }
 
 function siege()
 {
+
+    function siegeLazy(list, list_p)
+    {
+        return new List('Siege', {_list: list, _list_p: list_p},
+            pred_true,
+            ({_list,_list_p}) =>
+            {
+                const n = _list.item;
+                const p = _list_p.item;
+                if(n === p*p)
+                    return {_list: _list.next.filter(residue(p)), _list_p: _list_p.next};
+                return {_list: _list.next, _list_p: _list_p};
+            },
+            ({_list,_list_p}) =>
+            {
+                const n = _list.item;
+                const p = _list_p.item;
+                return n !== p*p
+            },
+            apply_item);
+    }
+
+
     let n = imediate(2);
     n._next = siegeLazy(num(3),n);
     return n;
 }
 
-let n = siege();
-n.while((n)=>{return n<500}).displayAll();
+function fibonacci()
+{
+    return new List('Fibonacci', {_a: 1, _b: 1}, pred_true,
+                    ({_a,_b})=>{return {_a:_b,_b:_a+_b}}, pred_true,
+                    ({_a,_b})=>{return  _a});
+}
+
+
+let n = num(0,5);
+let m = num(10,15);
+n.append(m).displayAll();
+
