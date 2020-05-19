@@ -98,6 +98,11 @@ class List extends Lazy {
     get next() {return this.evaluate()._next}
 }
 
+List.prototype.evaluateAll = function() {
+    if(vazio(this)) return;
+    this.next.evaluateAll();
+}
+
 
 
 List.prototype.take = function(n){
@@ -137,14 +142,6 @@ List.prototype.until = function(pred){
                             _predicate: validate_pred(pred),
                             _advance: advance_list
                         })
-}
-
-List.prototype.combine = function(list,func){
-    return new List('Combine', {_list_a: this, _list_b: list}, {
-        _predicate: ({_list_a, _list_b}) => {return vazio(_list_a) || vazio(_list_b)},
-        _advance:   ({_list_a, _list_b}) => {return {_list_a: _list_a.next, _list_b: _list_b.next}},
-        _apply:     ({_list_a, _list_b}) => {return func(_list_a.item, _list_b.item)}
-    });
 }
 
 List.prototype.reduceMap = function(func,offset){
@@ -204,6 +201,12 @@ List.prototype.plain = function(){
 
 List.prototype.tensor = function(list,func){return this.map((item_a)=>{return list.map((item_b)=>{return func(item_a,item_b)})})}
 
+List.prototype.envelope = function() {
+    return new List('Envelope',{_list:this},{
+        _apply: ({_list}) => {return _list}
+    })
+}
+
 
 
 List.prototype.access = function(n){
@@ -253,6 +256,50 @@ List.prototype.displayAll = function(){
     this.display();
     if(vazio(this)) return;
     this.next.displayAll();
+}
+
+
+
+function combine(list_a,list_b,func){
+    return new List('Combine', {_list_a: list_a, _list_b: list_b}, {
+        _predicate: ({_list_a, _list_b}) => {return vazio(_list_a) || vazio(_list_b)},
+        _advance:   ({_list_a, _list_b}) => {return {_list_a: _list_a.next, _list_b: _list_b.next}},
+        _apply:     ({_list_a, _list_b}) => {return func(_list_a.item, _list_b.item)}
+    });
+}
+
+function join_ordered(list_a, list_b) {
+    return new List('Join ordered',{_list_a: list_a, _list_b: list_b},{
+        _predicate: pred_false,
+        _advance:   ({_list_a,_list_b}) => {
+            if(_list_a.item < _list_b.item)
+                return {
+                    _list_a: _list_a.next,
+                    _list_b: _list_b
+                };
+            return {
+                _list_a: _list_a,
+                _list_b: _list_b.next
+            };
+        },
+        _apply:     ({_list_a,_list_b}) => {
+            if(_list_a.item < _list_b.item) return _list_a.item;
+            return _list_b.item;
+        },
+        _next:      ({_list_a,_list_b}) => {
+            if(_list_a.item < _list_b.item)
+            {
+                if(vazio(_list_a.next))
+                    return _list_b;
+            }
+            else
+            {
+                if(vazio(_list_b.next))
+                    return _list_a;
+            }
+            return null;
+        }
+    })
 }
 
 
@@ -392,7 +439,7 @@ function num(n1,n2) {
 }
 
 function sieveLazy(list, list_filter) {
-    return new List('sieve', {_list: list, _list_filter: list_filter},{
+    return new List('Sieve', {_list: list, _list_filter: list_filter},{
         _advance:   ({_list,_list_filter}) => {
             const n = _list.item;
             const p = _list_filter.item;
@@ -465,3 +512,26 @@ function megaSieve(){
     })
     return toLazy([2,3]).append(proximo);
 }
+
+//displayAll(megaSieve());26748181
+
+function getTime(){return new Date().getTime()}
+
+function ShowTime(){
+    function displayAllTime(list, tam){
+        let before = getTime();
+        do {
+            for(let i=0; i<tam; i++) {
+                if(vazio(list)) break;
+                list = list.next;
+            }
+            console.log(list.item + ',' + (getTime() - before));
+        }
+        while(!vazio(list))
+    }
+
+    console.log('sep=,');
+    displayAllTime(sieve().until(moreEqualThen(26285670)), 10000);
+}
+
+
